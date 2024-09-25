@@ -1,0 +1,277 @@
+---
+title: "Open Budget: Ukraine municipality financials"
+format: 
+  dashboard:
+    orientation: columns
+---
+
+```{r}
+#| output: false
+
+# Load and preprocess data, calculate key indicators (revenues, current surplus)
+
+library(readr)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+
+
+categories <- read_csv("inputs/budget_categories.csv")
+inc_categ <- categories |> filter(CATEG=="INC")
+exp_categ <- categories |> filter(CATEG=="EXP")
+
+incomes <- read_csv("data/incomes.csv")
+expenses <- read_csv("data/expenses.csv")
+
+income_agg <- incomes |>
+  mutate(TYPE = cut(COD_INCO,
+                    breaks = c(0,inc_categ$BREAK_END),
+                    labels = c(inc_categ$NAME_TYPE))
+  ) |>
+  filter(FUND_TYP == "T") |>
+  group_by(CITY, REP_PERIOD, TYPE) |>
+  summarise(value = sum(FAKT_AMT) / 10^6) 
+
+expense_agg <- expenses |>
+  mutate(TYPE = cut(COD_CONS_EK,
+                    breaks = c(0,exp_categ$BREAK_END),
+                    labels = c(exp_categ$NAME_TYPE)
+  )) |>
+  filter(FUND_TYP == "T") |>
+  group_by(CITY, REP_PERIOD, TYPE) |>
+  summarise(value = -sum(FAKT_AMT) / 10^6) 
+
+data_wide <- rbind(income_agg, expense_agg) |> 
+  arrange(CITY, REP_PERIOD, TYPE) |>  
+  pivot_wider(names_from = TYPE, 
+              values_from = value) |> 
+  replace_na(list(Interest = 0))
+
+revenues <- data_wide |> 
+  select(c(`Tax revenues`, `Non-tax revenues`, `Incoming transfers`)) |> 
+  mutate(`Total revenues` = sum(c_across(where(is.numeric)), na.rm = T))
+
+current_surplus <- data_wide |> 
+  select(-c(`Capital revenues`, `Capex`)) |> 
+  mutate(`Current surplus` = sum(c_across(where(is.numeric)), na.rm = T))
+
+ojs_define(data_rev = revenues);
+ojs_define(data_curr_surplus = current_surplus);
+
+```
+
+
+```{ojs}
+//| output: false
+
+revenues = transpose(data_rev)
+  .map(d => ({...d, REP_PERIOD: new Date(d.REP_PERIOD)}));
+  
+current_surplus = transpose(data_curr_surplus)
+  .map(d => ({...d, REP_PERIOD: new Date(d.REP_PERIOD)}));
+
+cities = Array.from(new Set(revenues.map(d => d.CITY)));
+
+indicators = ["Total revenues", "Current surplus"]; 
+
+myColors = ["black", "#a6d96a", "#fdae61", "#d7191c"];
+  
+```
+
+
+#  {.sidebar}
+
+```{ojs}
+
+viewof selectIndicator = Inputs.select(
+  indicators, 
+  {label: "Select indicator"}
+)
+
+viewof selectCity = Inputs.select(
+  cities, 
+  {label: "Select city", value: "Cherkasy"}
+)
+
+viewof selectYear = Inputs.select(
+  [2022,2023,2024], 
+  {label: "Select year", value: 2024, format: d => d.toString()}
+)
+
+viewof baseYear = Inputs.select(
+  [2021,2022,2023], 
+  {label: "Select base year", value: 2021, format: d => d.toString()}
+)
+
+
+```
+
+# Revenues 
+
+## Column {width="75%"}
+
+```{ojs}
+
+Plot.plot({
+  title: `${selectIndicator} dynamics in ${selectCity}`,
+  marginLeft: 50,
+  marginRight: 30,
+  height: 550,
+  x: {
+    // map all dates to 2021
+    transform: d => new Date(2021, d.getMonth(), d.getDay()),
+    tickFormat: "%b",
+    line: true,
+    label: null
+  },
+  y: { 
+    nice: true, 
+    grid: true, 
+    zero: true, 
+    label: "million UAH"
+  },
+  color: { range: myColors, legend: false},
+  marks: [
+    Plot.line(revenues.filter(d => d.CITY == selectCity), {
+      x: "REP_PERIOD",
+      y: selectIndicator,
+      stroke: d => d.REP_PERIOD.getUTCFullYear(),
+    }),
+    Plot.text(
+      revenues.filter(d => d.CITY == selectCity),
+      Plot.selectLast({
+        x: "REP_PERIOD",
+        y: selectIndicator,
+        text: d => `${d.REP_PERIOD.getUTCFullYear()}`,
+        fill: d => d.REP_PERIOD.getUTCFullYear(),
+        dy: -6,
+        dx: 12
+      })
+    ),
+  ]
+})
+
+```
+
+## Column {width="25%"}
+```{ojs}
+//| output: false
+1
+```
+
+
+# Current surplus
+
+```{ojs}
+//| output: false
+
+import { aq, op } from '@uwdata/arquero';
+
+cs = current_surplus
+      .map(d => ({...d, YEAR: 
+        d.REP_PERIOD.getUTCFullYear(), 
+        MONTH: d.REP_PERIOD.getMonth()})
+        );
+
+months = cs
+      .filter(d => d.YEAR == selectYear)
+      .map(d => d.MONTH);
+  
+month_max = Math.max(...months);
+
+data = cs
+    .filter(d => d.MONTH == month_max)
+    .filter(d => d.YEAR == baseYear | d.YEAR == selectYear)
+
+data_wf = aq.from(data)
+    .params({ selectYear: selectYear, baseYear: baseYear, month_max: month_max })
+    .groupby("CITY")
+    .derive({"Current surplus lag": d => op.lag(d["Current surplus"]),
+             "Tax revenues": d => d["Tax revenues"] - op.lag(d["Tax revenues"]),
+            "Non-tax revenues": d => d["Non-tax revenues"] - op.lag(d["Non-tax revenues"]),
+             "Incoming transfers": d => d["Incoming transfers"] - op.lag(d["Incoming transfers"]),
+             "Staff costs": d => d["Staff costs"] - op.lag(d["Staff costs"]),
+             "Purchases of materials": d => d["Purchases of materials"] - op.lag(d["Purchases of materials"]),
+             "Other opex": d => d["Other opex"] - op.lag(d["Other opex"]),
+             "Utility payments": d => d["Utility payments"] - op.lag(d["Utility payments"]),
+             "Outgoing transfers": d => d["Outgoing transfers"] - op.lag(d["Outgoing transfers"]),
+             "Interest": d => d["Interest"] - op.lag(d["Interest"]),
+             })
+    .select(['CITY', 'REP_PERIOD', 'YEAR', 'Current surplus lag', 'Tax revenues', 'Non-tax revenues', 'Incoming transfers', 'Staff costs', 'Purchases of materials', 'Other opex', 'Utility payments', 'Outgoing transfers', 'Interest', 'Current surplus'])
+    .rename({'Current surplus lag': `Current surplus \n${month_max + 1}m ${baseYear}`,
+             'Current surplus': `Current surplus \n${month_max + 1}m ${selectYear}`
+    })
+    .filter(d => d.YEAR == [selectYear])
+    .fold([aq.range(3,13)])
+    .groupby("CITY")
+    .derive({nextKey: d => op.lead(d.key),
+             accu: aq.rolling(d => op.sum(d.value))})
+    .derive({accu: d => d.key == `Current surplus \n${month_max + 1}m ${selectYear}` ? d.value : d.accu,
+             prior: d => d.key == `Current surplus \n${month_max + 1}m ${selectYear}` ? 0 : op.lag(d.accu) ?? 0,})
+    .objects();
+    
+plotLabel = (data, dy) => 
+  Plot.text(data, {
+    x: "key",
+    y: "accu",
+    dy: dy,    
+    //frameAnchor: anchor,
+    fontWeight: "bold",
+    text: d => d3.format(".2s")(d.value)
+  });
+  
+fmt = n => d3.format(",d")(n);
+
+colorDomain = ["Increase", "Decrease", "Total"];
+colorRange = ["#649334", "#cc392b", "#1f77b4"];
+
+```
+
+
+## Column {width="75%"}
+```{ojs}
+Plot.plot({
+    title: "Change in current surplus",
+    width: width,
+    x: {
+      align: 0,    
+      round: false,
+      domain: data_wf.map(d => d.key)
+    },
+    y: {
+      grid: true,
+      nice: true,      
+      label: "million UAH",      
+      //tickFormat: d3.format(".2s")
+    },
+    color: {
+      domain: colorDomain,
+      range: colorRange
+    },
+    marks: [   
+      Plot.barY(data_wf.filter(d => d.CITY == selectCity), {
+        x: "key",
+        y1: "prior",
+        y2: "accu",        
+        fill: d => d.key === `Current surplus \n${month_max + 1}m ${selectYear}` | d.key === `Current surplus \n${month_max + 1}m ${baseYear}` ? "Total": d.value >= 0 ? "Increase" : "Decrease",
+        title: d => `${d.key}\nProfit: ${fmt(d.value)}\nRunning Total: ${fmt(d.accu)}`
+      }),
+      Plot.ruleY(data_wf.filter(d => d.CITY == selectCity), {
+        x1: "key",
+        x2: "nextKey",
+        y: "accu",        
+        strokeDasharray: "1.5"
+      }),
+      Plot.ruleY([0], {strokeDasharray: "1.5"}),
+      plotLabel(data_wf.filter(d => d.CITY == selectCity).filter(d => d.value >= 0), -7),
+      plotLabel(data_wf.filter(d => d.CITY == selectCity).filter(d => d.value < 0), 7)
+    ]
+  })
+```
+
+
+# Data {scrolling="true"}
+
+```{ojs}
+Inputs.table(data_wf, {rows: 25})
+```

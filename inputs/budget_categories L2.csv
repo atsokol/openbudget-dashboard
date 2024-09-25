@@ -1,0 +1,34 @@
+CATEG,NAME_TYPE,BREAK_START,BREAK_END
+EXP,Staff Cost,0,2199
+EXP,Purchase of materials,2200,2249
+EXP,Current Discretionary Expenditure,2250,2269
+EXP,Utility payments,2270,2279
+EXP,Capex,2280,2281
+EXP,Current Discretionary Expenditure,2282,2399
+EXP,Interest paid,2400,2599
+EXP,"Transfer to legal entities, institutions, organizations",2600,2619
+EXP,Transfers to other budgets,2620,2699
+EXP,Transfer to residents,2700,2799
+EXP,Current Discretionary Expenditure,2800,2999
+EXP,Capex,3000,3199
+EXP,Capital Transfers (equity contributions),3200,3219
+EXP,Capital Transfers (budget & population),3220,8999
+EXP,Current Discretionary Expenditure,9000,9999
+INC,Personal income tax,0,11019999
+INC,Other Tax Revenues,11020000,13999999
+INC,Internal goods and services taxes,14000000,14999999
+INC,Other Tax Revenues,15000000,18049999
+INC,Unified income tax,18050000,18059999
+INC,Other Tax Revenues,18050000,19999999
+INC,Other Non-Tax Revenues,20000000,21010499
+INC,Interest received,21010500,21010599
+INC,Other Non-Tax Revenues,21010600,21010699
+INC,Interest received,21010700,21011199
+INC,Other Non-Tax Revenues,21011200,24109999
+INC,Interest received,24110000,24119999
+INC,Other Non-Tax Revenues,24120000,29999999
+INC,Sale of assets,30000000,39999999
+INC,Transfers,40000000,41999999
+INC,Capital grants,42000000,42999999
+INC,Transfers,43000000,49999999
+INC,Other Non-Tax Revenues,50000000,59999999
