@@ -7,3 +7,4 @@ src/.observablehq/*
 src/data/incomes.json
 src/data/expenses.json
 src/data/expenses-functional.json
+src/data/budget.duckdb
