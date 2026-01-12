@@ -177,6 +177,21 @@ Data is stored in compressed Parquet format (12MB build) instead of JSON (130MB)
 
 ## How Database Updates Work
 
+### Automated Updates (GitHub Actions)
+- **Weekly Schedule**: Every Sunday at 2 AM UTC
+- **Manual Trigger**: Run "Update Budget Data" workflow from Actions tab
+- **Workflow**: 
+  1. Updates DuckDB database from OpenBudget API
+  2. Generates Parquet files (`npm run generate-parquet`)
+  3. Builds and deploys site
+
+### Local Updates
+```bash
+npm run update-data       # Downloads latest from API
+npm run generate-parquet  # Regenerates Parquet files
+npm run build            # Builds site
+```
+
 ### Update Logic
 1. **Coverage Check**: Compares cities in `config.yaml` vs database
 2. **Missing Cities**: If any city absent → downloads 2021-present for that city

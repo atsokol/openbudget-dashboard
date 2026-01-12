@@ -74,6 +74,9 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      - name: Generate Parquet files
+        run: npm run generate-parquet
+
       - name: Build site
         run: npm run build
 
