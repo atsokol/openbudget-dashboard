@@ -1,4 +1,9 @@
 .DS_Store
 /dist/
 node_modules/
-yarn-error.log
+src/data/csvs/*
+src/.observablehq/*
+# Large data files (>50MB)
+src/data/incomes.json
+src/data/expenses.json
+src/data/expenses-functional.json

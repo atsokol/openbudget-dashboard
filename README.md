@@ -1,59 +1,188 @@
-# Openbudget Dashboard
+# Ukraine Municipal Budget Analysis
 
-This is an [Observable Framework](https://observablehq.com/framework/) app. To install the required dependencies, run:
+Dashboard for analyzing Ukrainian municipal budget data. 
 
+## Architecture
+
+All cities, budget categories, and colors defined in `config.yaml`. Add cities or change categorization without touching code.
+
+### Data Flow
 ```
-npm install
-```
-
-Then, to start the local preview server, run:
-
-```
-npm run dev
-```
-
-Then visit <http://localhost:3000> to preview your app.
-
-For more, see <https://observablehq.com/framework/getting-started>.
-
-## Project structure
-
-A typical Framework project looks like this:
-
-```ini
-.
-├─ src
-│  ├─ components
-│  │  └─ timeline.js           # an importable module
-│  ├─ data
-│  │  ├─ launches.csv.js       # a data loader
-│  │  └─ events.json           # a static data file
-│  ├─ example-dashboard.md     # a page
-│  ├─ example-report.md        # another page
-│  └─ index.md                 # the home page
-├─ .gitignore
-├─ observablehq.config.js      # the app config file
-├─ package.json
-└─ README.md
+config.yaml → config.R (R scripts) + config.json.js (Dashboard)
+OpenBudget API → helper-functions.R → update-db.R → budget.duckdb
+budget.duckdb → budget-summary.json.js → Dashboard
 ```
 
-**`src`** - This is the “source root” — where your source files live. Pages go here. Each page is a Markdown file. Observable Framework uses [file-based routing](https://observablehq.com/framework/project-structure#routing), which means that the name of the file controls where the page is served. You can create as many pages as you like. Use folders to organize your pages.
+### Components
 
-**`src/index.md`** - This is the home page for your app. You can have as many additional pages as you’d like, but you should always have a home page, too.
+**Configuration** - `config.yaml` (24 cities, 4 revenue categories, 3 expense categories, color schemes)
 
-**`src/data`** - You can put [data loaders](https://observablehq.com/framework/data-loaders) or static data files anywhere in your source root, but we recommend putting them here.
+**R Scripts** (3 files)
+- `src/data/config.R` - Config helpers: read_config(), get_all_city_codes(), create_city_lookup()
+- `src/data/helper-functions.R` - API: download_data(), api_construct(), call_api()
+- `src/data/update-db.R` - Updater: downloads from API, updates DuckDB
 
-**`src/components`** - You can put shared [JavaScript modules](https://observablehq.com/framework/imports) anywhere in your source root, but we recommend putting them here. This helps you pull code out of Markdown files and into JavaScript modules, making it easier to reuse code across pages, write tests and run linters, and even share code with vanilla web applications.
+**Data Loaders** (2 files)
+- `src/data/config.json.js` - Config as JSON for dashboard
+- `src/data/budget-summary.json.js` - Aggregated budget data
 
-**`observablehq.config.js`** - This is the [app configuration](https://observablehq.com/framework/config) file, such as the pages and sections in the sidebar navigation, and the app’s title.
+**Database** - `src/data/budget.duckdb` (5 tables: incomes, expenses, expenses_functional, debts, credits)
 
-## Command reference
+**Dashboards** (3 files)
+- `src/index.md` - Home page
+- `src/test.md` - Minimal test
+- `src/budget-dashboard.md` - Full dashboard
 
-| Command           | Description                                              |
-| ----------------- | -------------------------------------------------------- |
-| `npm install`            | Install or reinstall dependencies                        |
-| `npm run dev`        | Start local preview server                               |
-| `npm run build`      | Build your static site, generating `./dist`              |
-| `npm run deploy`     | Deploy your app to Observable                            |
-| `npm run clean`      | Clear the local data loader cache                        |
-| `npm run observable` | Run commands like `observable help`                      |
+## Quick Start
+
+```bash
+npm install              # Install dependencies
+npm run init-db          # Create database from CSV files
+npm run dev              # Start dev server → http://localhost:3000
+```
+
+## Common Tasks
+
+### Update Data
+```bash
+npm run update-data      # Downloads latest from API, updates DB
+```
+
+**How it works:**
+1. Checks if all cities from `config.yaml` are in database
+2. If cities missing → downloads all years (2021-present) for missing cities only
+3. If all cities present → downloads new months for all cities
+
+### Add a City
+Edit `config.yaml`:
+```yaml
+cities:
+  - name: "NewCity"
+    codes: ["1234567890"]
+```
+Run: `npm run update-data`
+
+### Change Category Colors
+Edit `config.yaml`:
+```yaml
+revenue_categories:
+  - name: "Tax revenues"
+    codes: [0, 19999999]
+    color: "#3498db"
+    type: "range"
+```
+Refresh browser (no rebuild needed)
+
+### Validate Config
+```bash
+cd src/data
+Rscript -e "source('config.R'); validate_config()"
+```
+
+## Project Structure
+
+```
+openbudget-dashboard/
+├── config.yaml                    # Central configuration
+├── src/
+│   ├── data/
+│   │   ├── config.R               # R config helpers
+│   │   ├── helper-functions.R     # API download
+│   │   ├── update-db.R            # Update script
+│   │   ├── setup-db.sql           # DB schema
+│   │   ├── config.json.js         # Config loader
+│   │   ├── budget-summary.json.js # Data loader
+│   │   ├── budget.duckdb          # Database (20MB)
+│   │   └── csvs/                  # CSV data
+│   ├── index.md                   # Home
+│   ├── test.md                    # Test
+│   └── budget-dashboard.md        # Dashboard
+├── observablehq.config.js         # Framework config
+└── package.json                   # Dependencies
+```
+
+## Configuration Examples
+
+### Single Range
+```yaml
+revenue_categories:
+  - name: "Tax revenues"
+    codes: [0, 19999999]
+    color: "#4682b4"
+    type: "range"
+```
+
+### Multiple Ranges
+```yaml
+revenue_categories:
+  - name: "Non-tax revenues"
+    codes:
+      - [20000000, 21010499]
+      - [21010600, 21010699]
+    color: "#2e8b57"
+    type: "ranges"
+```
+
+### City with Multiple Codes
+```yaml
+cities:
+  - name: "Kyiv"
+    codes: ["2600000000", "26000000000"]
+```
+
+## Debugging
+
+### Check Database
+```bash
+duckdb src/data/budget.duckdb
+SELECT COUNT(*) FROM incomes;
+SELECT DISTINCT CITY FROM incomes;
+```
+
+### Test Loaders
+```bash
+node src/data/config.json.js | head -100
+node src/data/budget-summary.json.js | head -100
+```
+
+## Technology
+
+- **Observable Framework** - Reactive JavaScript notebooks
+- **DuckDB** - Columnar analytical database
+- **R** - Data processing, API access
+- **Observable Plot + D3** - Visualization
+- **OpenBudget API** - api.openbudget.gov.ua
+
+## Data Source
+
+[Open Budget Ukraine](https://openbudget.gov.ua) - Ministry of Finance portal
+
+## How Database Updates Work
+
+### Update Logic
+1. **Coverage Check**: Compares cities in `config.yaml` vs database
+2. **Missing Cities**: If any city absent → downloads 2021-present for that city
+3. **Incremental**: If all cities present → downloads new months for all cities
+4. **Idempotent**: Deletes existing periods before inserting (no duplicates)
+
+### Data Range
+- **Start Year**: 2021 (configurable in code)
+- **End**: Current month
+- Use case: Add city to config.yaml, run update, city data auto-downloads
+
+### Schema
+```
+COD_BUDGET: BIGINT  (city budget code)
+PLANS_AMT: DOUBLE   (planned amount)
+REP_PERIOD: DATE    (reporting period)
+FAKT_AMT: DOUBLE    (actual amount)
+```
+
+### Column Types
+- Types hardcoded in `helper-functions.R` based on OpenBudget API
+- Match database schema in `setup-db.sql`
+- Consistent with API response structure
+
+## License
+
+MIT

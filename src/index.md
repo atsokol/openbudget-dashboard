@@ -3,10 +3,61 @@ toc: false
 ---
 
 <div class="hero">
-  <h1>Openbudget Dashboard</h1>
-  <h2>Welcome to your new app! Edit&nbsp;<code style="font-size: 90%;">src/index.md</code> to change this page.</h2>
-  <a href="https://observablehq.com/framework/getting-started">Get started<span style="display: inline-block; margin-left: 0.25rem;">↗︎</span></a>
+  <h1>Ukraine Municipal Budget Analysis</h1>
+  <h2>Interactive analysis of Ukrainian municipal budget data from Open Budget Ukraine</h2>
+  <a href="./budget-dashboard">View Dashboard<span style="display: inline-block; margin-left: 0.25rem;">→</span></a>
 </div>
+
+<div class="grid grid-cols-1">
+  <div class="card">
+    <h2>📊 Budget Dashboard</h2>
+    <p>Explore comprehensive budget data including:</p>
+    <ul>
+      <li>Revenue and expense trends by city</li>
+      <li>Year-over-year comparisons</li>
+      <li>Multi-city horizontal analysis</li>
+      <li>Budget breakdowns by classification</li>
+    </ul>
+    <a href="./budget-dashboard" class="button">Open Dashboard →</a>
+  </div>
+  
+  <div class="card">
+    <h2>⚙️ Capital Adjustments</h2>
+    <p>Configure which budget categories are treated as capital vs. current:</p>
+    <ul>
+      <li>Select capital income categories to exclude</li>
+      <li>Select capital expense categories to exclude</li>
+      <li>Adjust the current surplus calculation</li>
+      <li>Settings persist across sessions</li>
+    </ul>
+    <a href="./adjustments" class="button">Configure Adjustments →</a>
+  </div>
+</div>
+
+## 🚀 Quick Start
+
+```bash
+# Initialize database (first time only)
+npm run init-db
+
+# Update data from API
+npm run update-data
+
+# Start development server
+npm run dev
+```
+
+## 📚 Documentation
+
+- **QUICK-START.md** - Common commands and tasks
+- **SETUP-GUIDE.md** - Comprehensive setup guide
+- **MIGRATION-SUMMARY.md** - Architecture overview
+
+## 🔄 Data Source
+
+Data comes from [Open Budget Ukraine](https://openbudget.gov.ua), maintained by the Ministry of Finance of Ukraine.
+
+---
 
 <div class="grid grid-cols-2" style="grid-auto-rows: 504px;">
   <div class="card">${
