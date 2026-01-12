@@ -1,0 +1,10 @@
+readr
+tidyr
+dplyr
+purrr
+httr
+jsonlite
+lubridate
+DBI
+duckdb
+yaml
