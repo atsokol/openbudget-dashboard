@@ -52,12 +52,15 @@ jobs:
         run: |
           cd src/data
           if [ ! -f "budget.duckdb" ]; then
-            echo "No cached database. Building from scratch..."
+            echo "No cached database. Initializing from CSV files..."
+            Rscript init-db-from-csvs.R
+            echo "Updating with latest data from API..."
+            Rscript update-db.R
           else
             echo "Cached database found ($(ls -lh budget.duckdb | awk '{print $5}'))"
             echo "Updating with latest data from API..."
+            Rscript update-db.R
           fi
-          Rscript update-db.R
           echo "Database updated successfully ($(ls -lh budget.duckdb | awk '{print $5}'))"
         env:
           TZ: UTC

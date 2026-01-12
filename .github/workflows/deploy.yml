@@ -50,9 +50,9 @@ jobs:
         run: |
           cd src/data
           if [ ! -f "budget.duckdb" ]; then
-            echo "No cached database found. Building from scratch..."
-            echo "This will take 15-30 minutes for initial setup."
-            Rscript update-db.R
+            echo "No cached database found. Initializing from CSV files..."
+            echo "This will take 2-5 minutes."
+            Rscript init-db-from-csvs.R
           else
             echo "Using cached database ($(ls -lh budget.duckdb | awk '{print $5}'))"
             echo "Skipping data update on code-only deployments."
