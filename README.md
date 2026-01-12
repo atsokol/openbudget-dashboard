@@ -10,7 +10,7 @@ All cities, budget categories, and colors defined in `config.yaml`. Add cities o
 ```
 config.yaml → config.R (R scripts) + config.json.js (Dashboard)
 OpenBudget API → helper-functions.R → update-db.R → budget.duckdb
-budget.duckdb → budget-summary.json.js → Dashboard
+budget.duckdb → generate-parquet.js → 3× Parquet files → Dashboard
 ```
 
 ### Components
@@ -22,9 +22,10 @@ budget.duckdb → budget-summary.json.js → Dashboard
 - `src/data/helper-functions.R` - API: download_data(), api_construct(), call_api()
 - `src/data/update-db.R` - Updater: downloads from API, updates DuckDB
 
-**Data Loaders** (2 files)
+**Data Loaders** (3 files)
 - `src/data/config.json.js` - Config as JSON for dashboard
 - `src/data/budget-summary.json.js` - Aggregated budget data
+- `src/data/generate-parquet.js` - Consolidated Parquet generator (creates incomes, expenses, expenses-functional)
 
 **Database** - `src/data/budget.duckdb` (5 tables: incomes, expenses, expenses_functional, debts, credits)
 
@@ -46,12 +47,16 @@ npm run dev              # Start dev server → http://localhost:3000
 ### Update Data
 ```bash
 npm run update-data      # Downloads latest from API, updates DB
+npm run generate-parquet # Regenerate Parquet files from DuckDB
 ```
 
 **How it works:**
 1. Checks if all cities from `config.yaml` are in database
 2. If cities missing → downloads all years (2021-present) for missing cities only
 3. If all cities present → downloads new months for all cities
+4. Run `generate-parquet` to update the Parquet files used by the dashboard
+
+**Note:** Observable Framework automatically runs data loaders during build, but you can manually regenerate Parquet files if needed.
 
 ### Add a City
 Edit `config.yaml`:
@@ -91,12 +96,14 @@ openbudget-dashboard/
 │   │   ├── update-db.R            # Update script
 │   │   ├── setup-db.sql           # DB schema
 │   │   ├── config.json.js         # Config loader
-│   │   ├── budget-summary.json.js # Data loader
-│   │   ├── budget.duckdb          # Database (20MB)
-│   │   └── csvs/                  # CSV data
+│   │   ├── budget-summary.json.js # Summary data loader
+│   │   ├── generate-parquet.js    # Consolidated Parquet generator
+│   │   ├── budget.duckdb          # Database (50MB)
+│   │   └── csvs/                  # CSV source data
+│   ├── components/                # Visualization components
 │   ├── index.md                   # Home
-│   ├── test.md                    # Test
-│   └── budget-dashboard.md        # Dashboard
+│   ├── adjustments.md             # Capital adjustments
+│   └── budget-dashboard.md        # Main dashboard
 ├── observablehq.config.js         # Framework config
 └── package.json                   # Dependencies
 ```
@@ -143,15 +150,26 @@ SELECT DISTINCT CITY FROM incomes;
 ```bash
 node src/data/config.json.js | head -100
 node src/data/budget-summary.json.js | head -100
+# Parquet files are binary, check build output instead
+npm run build | grep parquet
 ```
 
 ## Technology
 
 - **Observable Framework** - Reactive JavaScript notebooks
 - **DuckDB** - Columnar analytical database
+- **Apache Parquet** - Compressed columnar file format (~50x smaller than JSON)
 - **R** - Data processing, API access
 - **Observable Plot + D3** - Visualization
 - **OpenBudget API** - api.openbudget.gov.ua
+
+## Build Optimization
+
+Data is stored in compressed Parquet format (12MB build) instead of JSON (130MB). Parquet files are:
+- ~50x smaller than JSON
+- Fast to decompress in browser
+- Column-oriented for efficient queries
+- Generated at build time from DuckDB
 
 ## Data Source
 

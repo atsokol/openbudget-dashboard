@@ -16,11 +16,6 @@ export default {
   // The path to the source root.
   root: "src",
 
-  // DuckDB configuration
-  duckdb: {
-    database: "src/data/budget.duckdb"
-  },
-
   // Theme and appearance
   theme: "light",
   sidebar: true,

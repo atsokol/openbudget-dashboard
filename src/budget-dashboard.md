@@ -21,48 +21,42 @@ import {TrendsChart} from "./components/trends-chart.js";
 import {YoYComparisonChart} from "./components/yoy-comparison-chart.js";
 import {WaterfallChart, WaterfallComparisonChart} from "./components/waterfall.js";
 import {prepareWaterfallData, prepareWaterfallComparisonData, get_codes} from "./components/waterfall-data.js";
-import {query} from "./components/duckdb.js";
 
-// Load data from DuckDB via WASM
+// Load data files
 const budgetData = await FileAttachment("data/budget-summary.json").json();
 const config = await FileAttachment("data/config.json").json();
 
-// Query data directly from DuckDB in the browser
-const inc = await query(`
-  SELECT 
-    CITY,
-    REP_PERIOD,
-    FUND_TYP,
-    CAST(COD_INCO AS BIGINT) as COD_INCO,
-    NAME_INC,
-    FAKT_AMT
-  FROM 'budget.duckdb'.incomes
-  ORDER BY CITY, REP_PERIOD, COD_INCO
-`);
+// Load Parquet files and convert Arrow tables to plain JavaScript objects
+// Note: Arrow tables return Proxy objects with BigInt values, so we explicitly map to plain objects
+const incomes = await FileAttachment("data/incomes.parquet").parquet()
+  .then(table => [...table].map(row => ({
+    CITY: row.CITY,
+    REP_PERIOD: new Date(row.REP_PERIOD),
+    FUND_TYP: row.FUND_TYP,
+    COD_INCO: Number(row.COD_INCO),
+    NAME_INC: row.NAME_INC,
+    FAKT_AMT: row.FAKT_AMT
+  })));
 
-const exp_e = await query(`
-  SELECT 
-    CITY,
-    REP_PERIOD,
-    FUND_TYP,
-    CAST(COD_CONS_EK AS BIGINT) as COD_CONS_EK,
-    COD_CONS_EK_NAME,
-    FAKT_AMT
-  FROM 'budget.duckdb'.expenses
-  ORDER BY CITY, REP_PERIOD, COD_CONS_EK
-`);
+const expenses_econ = await FileAttachment("data/expenses.parquet").parquet()
+  .then(table => [...table].map(row => ({
+    CITY: row.CITY,
+    REP_PERIOD: new Date(row.REP_PERIOD),
+    FUND_TYP: row.FUND_TYP,
+    COD_CONS_EK: Number(row.COD_CONS_EK),
+    COD_CONS_EK_NAME: row.COD_CONS_EK_NAME,
+    FAKT_AMT: row.FAKT_AMT
+  })));
 
-const exp_f = await query(`
-  SELECT 
-    CITY,
-    REP_PERIOD,
-    FUND_TYP,
-    CAST(COD_CONS_MB_FK AS BIGINT) as COD_CONS_MB_FK,
-    COD_CONS_MB_FK_NAME,
-    FAKT_AMT
-  FROM 'budget.duckdb'.expenses_functional
-  ORDER BY CITY, REP_PERIOD, COD_CONS_MB_FK
-`);
+const expenses_func = await FileAttachment("data/expenses-functional.parquet").parquet()
+  .then(table => [...table].map(row => ({
+    CITY: row.CITY,
+    REP_PERIOD: new Date(row.REP_PERIOD),
+    FUND_TYP: row.FUND_TYP,
+    COD_CONS_MB_FK: Number(row.COD_CONS_MB_FK),
+    COD_CONS_MB_FK_NAME: row.COD_CONS_MB_FK_NAME,
+    FAKT_AMT: row.FAKT_AMT
+  })));
 
 // Load classificators
 const inck_table = await FileAttachment("data/classificators/KDB.json").json();
@@ -102,30 +96,20 @@ for (const periodKey of allPeriods) {
   }
 }
 
-// Helper function to get average FX rate for a period (now uses pre-computed values)
+// Helper function to get average FX rate for a period
 function getAverageFxRate(date) {
   const periodKey = `${date.getFullYear()}-${date.getMonth()}`;
   return fxRatesByPeriod.get(periodKey) || 1;
 }
 
-// Currency conversion function
-
-// Parse dates in all datasets
-const parseData = (arr) => arr.map(d => ({
+// Parse budget summary data and calculate current surplus
+const data = budgetData.map(d => ({
   ...d,
-  REP_PERIOD: new Date(d.REP_PERIOD)
-}));
-
-const data = parseData(budgetData).map(d => ({
-  ...d,
+  REP_PERIOD: new Date(d.REP_PERIOD),
   curr_surplus: d.income_curr - d.expense_curr
 }));
-const incomes = parseData(inc);
-const expenses_econ = parseData(exp_e);
-const expenses_func = parseData(exp_f);
 
 const cityNames = [...new Set(data.map(d => d.CITY))].sort();
-const cities = cityNames;
 ```
 
 ```js
@@ -218,38 +202,31 @@ const getCapitalExpenseCodes = () => {
 const capitalIncomeCodes = getCapitalIncomeCodes();
 const capitalExpenseCodes = getCapitalExpenseCodes();
 
-// Filter to current income (exclude capital income)
+// Get expanded code lists for filtering
 const inc_cap_codes = get_codes(inck_prep, capitalIncomeCodes);
-const curr_inc = incomes.filter(d => !inc_cap_codes.includes(d.COD_INCO));
-
-// Capital income data
-const cap_inc = incomes.filter(d => inc_cap_codes.includes(d.COD_INCO));
-
-// Filter to current expenses (exclude capital expenses)
 const exp_cap_codes = get_codes(kek_prep, capitalExpenseCodes);
-const curr_exp = expenses_econ.filter(d => !exp_cap_codes.includes(d.COD_CONS_EK));
 
-// Capital expense data
-const cap_exp = expenses_econ.filter(d => exp_cap_codes.includes(d.COD_CONS_EK));
-
-// Combine current income and expenses for surplus calculation
-const curr_surplus = [
-  ...curr_inc.map(d => ({...d, COD: d.COD_INCO, FAKT_AMT: +d.FAKT_AMT})),
-  ...curr_exp.map(d => ({...d, COD: d.COD_CONS_EK, FAKT_AMT: -d.FAKT_AMT})),
-];
-
-// Combine capital income and expenses into a single "Capital Adjustments" category
-// Use a special code (999999999) for capital adjustments
+// Special code for capital adjustments category
 const CAPITAL_ADJ_CODE = 999999999;
-const cap_adj = [
-  ...cap_inc.map(d => ({...d, COD: CAPITAL_ADJ_CODE, FAKT_AMT: +d.FAKT_AMT})),
-  ...cap_exp.map(d => ({...d, COD: CAPITAL_ADJ_CODE, FAKT_AMT: -d.FAKT_AMT})),
-];
 
-// Overall surplus = current surplus + capital adjustments
+// Combine current and capital items into overall surplus structure
 const overall_surplus = [
-  ...curr_surplus,
-  ...cap_adj,
+  // Current income (exclude capital)
+  ...incomes
+    .filter(d => !inc_cap_codes.includes(d.COD_INCO))
+    .map(d => ({...d, COD: d.COD_INCO, FAKT_AMT: +d.FAKT_AMT})),
+  // Current expenses (exclude capital)
+  ...expenses_econ
+    .filter(d => !exp_cap_codes.includes(d.COD_CONS_EK))
+    .map(d => ({...d, COD: d.COD_CONS_EK, FAKT_AMT: -d.FAKT_AMT})),
+  // Capital income as adjustment
+  ...incomes
+    .filter(d => inc_cap_codes.includes(d.COD_INCO))
+    .map(d => ({...d, COD: CAPITAL_ADJ_CODE, FAKT_AMT: +d.FAKT_AMT})),
+  // Capital expenses as adjustment
+  ...expenses_econ
+    .filter(d => exp_cap_codes.includes(d.COD_CONS_EK))
+    .map(d => ({...d, COD: CAPITAL_ADJ_CODE, FAKT_AMT: -d.FAKT_AMT}))
 ];
 
 // Create combined classificator table for current surplus (simplified)
@@ -305,13 +282,13 @@ const currencyLabel = (currency) => {
   return currency === "EUR" ? "EUR million" : "UAH million";
 };
 
-// Create conversion wrapper that applies conversion lazily
+// Currency conversion helper - applies exchange rates to all monetary fields
 function withConversion(data, currency) {
   if (currency === "UAH") return data;
   
   return data.map(d => {
-    const converted = {...d};
     const rate = getAverageFxRate(d.REP_PERIOD);
+    const converted = {...d};
     
     // Convert all amount fields
     if ('income' in d) converted.income = d.income / rate;
@@ -325,37 +302,14 @@ function withConversion(data, currency) {
   });
 }
 
-// Apply currency conversion
+// Apply currency conversion to all datasets
 const dataConverted = withConversion(data, selectCurrency);
 const incomesConverted = withConversion(incomes, selectCurrency);
 const expenses_econConverted = withConversion(expenses_econ, selectCurrency);
 const expenses_funcConverted = withConversion(expenses_func, selectCurrency);
 
-// Filter to current income (exclude capital income)
-const inc_cap_codes = get_codes(inck_prep, capitalIncomeCodes);
-const curr_inc_converted = incomesConverted.filter(d => !inc_cap_codes.includes(d.COD_INCO));
-const cap_inc_converted = incomesConverted.filter(d => inc_cap_codes.includes(d.COD_INCO));
-
-// Filter to current expenses (exclude capital expenses)
-const exp_cap_codes = get_codes(kek_prep, capitalExpenseCodes);
-const curr_exp_converted = expenses_econConverted.filter(d => !exp_cap_codes.includes(d.COD_CONS_EK));
-const cap_exp_converted = expenses_econConverted.filter(d => exp_cap_codes.includes(d.COD_CONS_EK));
-
-// Combine for surplus calculation
-const curr_surplus_converted = [
-  ...curr_inc_converted.map(d => ({...d, COD: d.COD_INCO, FAKT_AMT: +d.FAKT_AMT})),
-  ...curr_exp_converted.map(d => ({...d, COD: d.COD_CONS_EK, FAKT_AMT: -d.FAKT_AMT})),
-];
-
-const cap_adj_converted = [
-  ...cap_inc_converted.map(d => ({...d, COD: CAPITAL_ADJ_CODE, FAKT_AMT: +d.FAKT_AMT})),
-  ...cap_exp_converted.map(d => ({...d, COD: CAPITAL_ADJ_CODE, FAKT_AMT: -d.FAKT_AMT})),
-];
-
-const overall_surplus_converted = [
-  ...curr_surplus_converted,
-  ...cap_adj_converted
-];
+// Apply same conversion logic to overall surplus
+const overall_surplus_converted = withConversion(overall_surplus, selectCurrency);
 ```
 
 ```js
