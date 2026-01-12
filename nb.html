@@ -1,0 +1,1051 @@
+<!doctype html>
+<notebook theme="air">
+  <title>Ukraine municipal budget analysis</title>
+  <script id="0" type="text/markdown">
+    # Ukraine municipal budget analysis
+  </script>
+  <script id="523" type="text/markdown">
+    Analysis is based on the data from Open Budget, an open resource maintained by the Ministry of Finance of Ukraine:
+    https://openbudget.gov.ua
+
+    Data is automatically updated on a monthly basis using an R script deployed here: https://github.com/atsokol/openbudget-data-update
+  </script>
+  <script id="520" type="text/markdown">
+    ## Trends by city
+  </script>
+  <script id="50" type="application/vnd.observable.javascript">
+    viewof selectCity = Inputs.select(cities, {label: "Select city", value: "Cherkasy"})
+  </script>
+  <script id="167" type="application/vnd.observable.javascript">
+    viewof selectIndicator = Inputs.select(indicators, {label: "Select indicator", format: d => d.name})
+  </script>
+  <script id="12" type="application/vnd.observable.javascript">
+    Plot.plot({
+      title: `${selectIndicator.name} dynamics in ${selectCity}`,
+      marginLeft: 50,
+      marginRight: 30,
+      x: {
+        // map all dates to 2021
+        transform: (d) => new Date(2021, d.getMonth(), d.getDay()),
+        tickFormat: "%b",
+        line: true,
+        label: null
+      },
+      y: { nice: true, grid: true, zero: true, label: "million UAH"},
+      color: {type: "categorical", legend: false},
+      marks: [
+        Plot.line(data.filter(d => d.CITY == selectCity), {
+          x: "REP_PERIOD",
+          y: selectIndicator.indicator,
+          stroke: ({REP_PERIOD}) => REP_PERIOD.getUTCFullYear()
+        }),
+        Plot.text(
+          data.filter(d => d.CITY == selectCity),
+          Plot.selectLast({
+            x: "REP_PERIOD",
+            y: selectIndicator.indicator,
+            text: d => `${d.REP_PERIOD.getUTCFullYear()}`,
+            fill: d => d.REP_PERIOD.getUTCFullYear(),
+            dy: -6,
+            dx: 12
+          })
+        ),
+      ]
+    })
+  </script>
+  <script id="160" type="application/vnd.observable.javascript">
+    viewof selectYear = Inputs.select([2022,2023,2024,2025], {label: "Select year", value: 2025, format: d => d.toString()})
+  </script>
+  <script id="646" type="application/vnd.observable.javascript">
+    viewof baseYear = Inputs.select([2021,2022,2023,2024], {label: "Base year", value: 2024, format: d => d.toString()})
+  </script>
+  <script id="113" type="application/vnd.observable.javascript">
+    Plot.plot({
+      title: `${selectIndicator.name} dynamics in ${selectCity}`,
+      marginLeft: 50,
+      marginRight: 50,
+      x: {
+        transform: (d) => new Date(2021, d, 1),
+        tickFormat: "%b",
+        line: true,
+        label: null
+      },
+      y: { nice: true, grid: true, zero: true, label: "million UAH" },
+      color: { scheme: "RdYlBu", label: "colder" },
+      marks: [
+        Plot.differenceY(data_pivot.filter(d => d.city == selectCity), {
+          x: "month",
+          y1: "current",
+          y2: "base",
+          positiveFill: () => "1",
+          negativeFill: () => "2",
+          curve: "catmull-rom",
+          tip: true
+        }),
+        Plot.text(
+          data_pivot.filter(d => d.city == selectCity),
+          Plot.selectMaxY({
+            x: "month",
+            y: "current",
+            text: () => `Current year (${selectYear})` ,
+            dy: -6
+          })
+        ),
+        Plot.text(
+          data_pivot.filter(d => d.city == selectCity),
+          Plot.selectMaxY({
+            x: "month",
+            y: "base",
+            text: () => `Base year (${baseYear})`,
+            dy: -6
+          })
+        ),
+        ]
+    })
+  </script>
+  <script id="3328" type="application/vnd.observable.javascript">
+    wf_plot(new_curr_surplus_wf, `Current surplus waterfall: ${selectCity} ${selectYear}`)
+  </script>
+  <script id="3340" type="application/vnd.observable.javascript">
+    wfd_plot(new_curr_surplus_wfd, `Current surplus change: ${selectCity} ${selectYear} vs ${baseYear}`)
+  </script>
+  <script id="1774" type="text/markdown">
+    ### Revenue breakdown in ${selectCity} ${selectYear}
+  </script>
+  <script id="1650" type="application/vnd.observable.javascript">
+    Icicle(inc_trtab, {
+      id: d => d.code,
+      parentId: d => d.parentCode,
+      value: d => d.value, // size of each node (file); null for internal nodes (folders)
+      label: d => d.name.slice(0,35), // display name for each cell
+      title: (d, n) => `${n.ancestors().map(d => d.data.code)[0]}\n${n.ancestors().map(d => d.data.name)[0]}\n${n.value.toLocaleString("en")}`, // hover text
+      format: ",d",
+      width: 1152,
+      height: 450
+    })
+  </script>
+  <script id="1262" type="text/markdown">
+    ### Expense functional breakdown in ${selectCity} ${selectYear}
+  </script>
+  <script id="1211" type="application/vnd.observable.javascript">
+    Icicle(exp_f_trtab, {
+      id: d => d.code,
+      parentId: d => d.parentCode,
+      value: d => d.value, // size of each node (file); null for internal nodes (folders)
+      label: d => d.name.slice(0,50), // display name for each cell
+      title: (d, n) => `${n.ancestors().map(d => d.data.name)[0]}\n${n.value.toLocaleString("en")}`, // hover text
+      format: ",d",
+      width: 1152,
+      height: 450
+    })
+  </script>
+  <script id="1399" type="text/markdown">
+    ### Expense economic breakdown in ${selectCity} ${selectYear}
+  </script>
+  <script id="1363" type="application/vnd.observable.javascript">
+    Icicle(exp_e_trtab, {
+      id: d => d.code,
+      parentId: d => d.parentCode,
+      value: d => d.value, // size of each node (file); null for internal nodes (folders)
+      label: d => d.name.slice(0,35), // display name for each cell
+      title: (d, n) => `${n.ancestors().map(d => d.data.name)[0]}\n${n.value.toLocaleString("en")}`, // hover text
+      format: ",d",
+      width: 1152,
+      height: 450
+    })
+  </script>
+  <script id="2590" type="application/vnd.observable.javascript">
+    selectCity2 = Inputs.bind(Inputs.select(cities, {label: "Select city", value: "Cherkasy"}), viewof selectCity)
+  </script>
+  <script id="2594" type="application/vnd.observable.javascript">
+    viewof selectYear2 = Inputs.bind(Inputs.select([2022,2023,2024,2025], {label: "Select year", value: 2024, format: d => d.toString()}), viewof selectYear)
+  </script>
+  <script id="2651" type="application/vnd.observable.javascript">
+    viewof baseYear2 = Inputs.bind(Inputs.select([2021,2022,2023], {label: "Base year", value: 2021, format: d => d.toString()}), viewof baseYear)
+  </script>
+  <script id="2039" type="application/vnd.observable.javascript">
+    viewof selectInc = Inputs.select(inck_table.filter(d => d.level <= 1), {label: "Select category", format: d => d.name}) 
+  </script>
+  <script id="1677" type="application/vnd.observable.javascript">
+    wfd_plot(inc_wfd, `Revenue waterfall: ${selectCity} ${selectYear} vs ${baseYear}`)
+  </script>
+  <script id="1814" type="application/vnd.observable.javascript">
+    viewof selectExpFunc = Inputs.select(kfk_table.filter(d => d.level <= 1), {label: "Select category", format: d => d.name}) 
+  </script>
+  <script id="1660" type="application/vnd.observable.javascript">
+    wfd_plot(exp_f_wfd, `Expense waterfall functional: ${selectCity} ${selectYear} vs ${baseYear}`)
+  </script>
+  <script id="2051" type="application/vnd.observable.javascript">
+    viewof selectExpEcon = Inputs.select(kek_table.filter(d => d.level <= 1), {label: "Select category", format: d => d.name}) 
+  </script>
+  <script id="1672" type="application/vnd.observable.javascript">
+    wfd_plot(exp_e_wfd, `Expense waterfall economic: ${selectCity} ${selectYear} vs ${baseYear}`)
+  </script>
+  <script id="1656" type="application/vnd.observable.javascript">
+    function wfd_plot(data, title) {
+      const 
+        colorDomain = ["Increase", "Decrease", "Total"],
+        colorRange = ["#649334", "#cc392b", "#1f77b4"];
+
+      return Plot.plot({
+        title: title,
+        width: width,
+        x: {
+          align: 0,    
+          round: false,
+          domain: data.map(d => d.key)
+        },
+        y: {
+          grid: true,
+          nice: true,      
+          label: "million UAH",      
+          //tickFormat: d3.format(".2s")
+        },
+        color: {
+          domain: colorDomain,
+          range: colorRange
+        },
+        marks: [   
+          Plot.barY(data, {
+            x: "key",
+            y1: "prior",
+            y2: "accu",        
+            fill: (d,i) => (i === 0 || i === data.length - 1) ? "Total": d.value >= 0 ? "Increase" : "Decrease",
+            title: d => `${d.key}\nProfit: ${fmt(d.value)}\nRunning Total: ${fmt(d.accu)}`
+          }),
+          Plot.ruleY(data, {
+            x1: "key",
+            x2: "nextKey",
+            y: "accu",        
+            strokeDasharray: "1.5"
+          }),
+          Plot.ruleY([0], {strokeDasharray: "1.5"}),
+          plotLabel(data.filter(d => d.value >= 0), -7),
+          plotLabel(data.filter(d => d.value < 0), 7),
+          Plot.axisX({label: null, lineWidth: 8.5, fontSize: 12, marginBottom: 70}),
+
+        ]
+      })
+
+    }
+  </script>
+  <script id="3086" type="application/vnd.observable.javascript">
+    function wf_plot(data, title) {
+      const 
+        colorDomain = ["Increase", "Decrease", "Total"],
+        colorRange = ["#649334", "#cc392b", "#1f77b4"];
+
+      return Plot.plot({
+        title: title,
+        width: width,
+        x: {
+          align: 0,    
+          round: false,
+          domain: data.map(d => d.key)
+        },
+        y: {
+          grid: true,
+          nice: true,      
+          label: "million UAH",      
+          //tickFormat: d3.format(".2s")
+        },
+        color: {
+          domain: colorDomain,
+          range: colorRange
+        },
+        marks: [   
+          Plot.barY(data, {
+            x: "key",
+            y1: "prior",
+            y2: "accu",        
+            fill: (d,i) => i === data.length - 1 ? "Total": d.value >= 0 ? "Increase" : "Decrease",
+            title: d => `${d.key}\nProfit: ${fmt(d.value)}\nRunning Total: ${fmt(d.accu)}`
+          }),
+          Plot.ruleY(data, {
+            x1: "key",
+            x2: "nextKey",
+            y: "accu",        
+            strokeDasharray: "1.5"
+          }),
+          Plot.ruleY([0], {strokeDasharray: "1.5"}),
+          plotLabel(data.filter(d => d.value >= 0), -7),
+          plotLabel(data.filter(d => d.value < 0), 7),
+          Plot.axisX({label: null, lineWidth: 8.5, fontSize: 12, marginBottom: 70}),
+
+        ]
+     })
+
+    }
+  </script>
+  <script id="2558" type="text/markdown">
+    ## Horizontal comparison
+  </script>
+  <script id="2975" type="application/vnd.observable.javascript">
+    selectCity3 = Inputs.bind(Inputs.select(cities, {label: "Select city", value: "Cherkasy"}), viewof selectCity)
+  </script>
+  <script id="2971" type="application/vnd.observable.javascript">
+    viewof selectIndicator2 = Inputs.bind(Inputs.select(indicators, {label: "Select indicator", format: d => d.name}), viewof selectIndicator)
+  </script>
+  <script id="2968" type="application/vnd.observable.javascript">
+    viewof selectYear3 = Inputs.bind(Inputs.select([2022,2023,2024], {label: "Select year", value: 2024, format: d => d.toString()}), viewof selectYear)
+  </script>
+  <script id="2965" type="application/vnd.observable.javascript">
+    viewof baseYear3 = Inputs.bind(Inputs.select([2021,2022,2023], {label: "Base year", value: 2021, format: d => d.toString()}), viewof baseYear)
+  </script>
+  <script id="305" type="application/vnd.observable.javascript">
+    Plot.plot({
+      title: `Change in ${selectIndicator.name}, ${month_max + 1}m ${selectYear} vs ${baseYear} YoY`,
+      marginLeft: 100,
+      marginRight: 50,
+      label: null,
+      x: {
+        axis: null,
+        percent: true
+      },
+      color: {
+        scheme: "PiYG",
+        type: "ordinal"
+      },
+      marks: [
+        Plot.barX(data_change, {
+          x: "pct_change",
+          y: "city",
+          fill: (d) => d.pct_change > 0,
+          sort: { y: "x" }
+        }),
+        Plot.barX(data_change.filter(d => d.city === selectCity), {
+          x: "pct_change",
+          y: "city",
+          fill: "#1f77b4",
+          sort: { y: "x" }
+        }),
+        Plot.gridX({ stroke: "white", strokeOpacity: 0.5 }),
+        d3
+          .groups(data_change, (d) => d.pct_change > 0)
+          .map(([growth, cities]) => [
+            Plot.axisY({
+              x: 0,
+              ticks: cities.map((d) => d.city),
+              tickSize: 0,
+              anchor: growth ? "left" : "right"
+            }),
+            Plot.textX(cities, {
+              x: "pct_change",
+              y: "city",
+              text: ((f) => (d) => f(d.pct_change))(d3.format("+.1%")),
+              textAnchor: growth ? "start" : "end",
+              dx: growth ? 4 : -4,
+            })
+          ]),
+        Plot.ruleX([0])
+      ]
+    })
+  </script>
+  <script id="406" type="application/vnd.observable.javascript">
+    Plot.plot({
+      title: `Share of transfers in municipal revenues: ${selectYear} vs ${baseYear}`,
+      marginLeft: 100,
+      x: {
+        axis: "top",
+        grid: true,
+        percent: true,
+        label: "Share of total (%)",
+      },
+      y: {label: null},
+      color: {
+        scheme: "BuRd",
+        reverse:true,
+        //label: "Change",
+        //legend: true,
+        tickFormat: ".0%"
+      },
+      marks: [
+        Plot.ruleX([0]),
+        Plot.arrow(transferShare, {
+          x1: `${baseYear}`,
+          y1: "CITY",
+          x2: `${selectYear}`,
+          y2: "CITY",
+          bend: false,
+          stroke: d => (d[selectYear] - d[baseYear])>0,
+          sort: {y: "x2", reverse: true}
+        }),
+
+      ]
+    })
+  </script>
+  <script id="3153" type="text/markdown">
+    <h2>Additional inputs</h2>
+  </script>
+  <script id="3149" type="text/markdown">
+    #### Select income categories to exclude from calculation of Current Surplus
+  </script>
+  <script id="3111" type="application/vnd.observable.javascript">
+    viewof selectCapitalIncomeCat = Inputs.table(inck_table.filter(d => d.level < 4), { 
+      columns: ["level", "code", "name"], 
+      value: inck_table.filter(
+        d => 
+        [30000000, 42000000, 21050000, 24110000, 21010500, 21010700, 21010800, 21010900]
+        .includes(d.code)
+      ),
+      multiple: true,
+      required: false, 
+      sort: "code", 
+      layout: "auto"})
+  </script>
+  <script id="3147" type="text/markdown">
+    #### Select expense categories to exclude from calculation of Current Surplus
+  </script>
+  <script id="3101" type="application/vnd.observable.javascript">
+    viewof selectCapitalExpenseCat = Inputs.table(kek_table, { 
+      columns: ["level", "code", "name"], 
+      value: kek_table.filter(
+        d => 
+        [2281, 3000]
+        .includes(d.code)
+      ),
+      multiple: true,
+      required: false, 
+      sort: "code", 
+      layout: "auto"})
+  </script>
+  <script id="300" type="text/html">
+    <br>
+    <h2>Annex: calculations</h2>
+  </script>
+  <script id="2581" type="text/markdown">
+    ### Horizontal comparison charts
+  </script>
+  <script id="566" type="application/vnd.observable.javascript">
+    data_yoy = aq.from(data_transform)
+      .params({selectYear: selectYear, month_max: month_max})
+      .groupby(["CITY", "MONTH"])
+      .derive({income_yoy: d => d.income / op.first_value(d.income)})
+      .groupby(["CITY", "YEAR"])
+      .filter(d => d.MONTH == month_max && d.YEAR == selectYear)
+      .objects()
+
+  </script>
+  <script id="311" type="application/vnd.observable.javascript">
+    data_change = aq.from(data_pivot)
+      .groupby("city")
+      .filter(d => d.current != undefined)
+      .filter(d => d.month == op.max(d.month))
+      .derive({pct_change: d => (d.current - d.base) / d.base})
+      .objects()
+  </script>
+  <script id="143" type="application/vnd.observable.javascript">
+    data_pivot = aq.from(data_transform.filter(d => d.YEAR == baseYear | d.YEAR == selectYear))
+      .groupby(["CITY", "MONTH"])
+      .pivot(['YEAR'], [selectIndicator.indicator])
+      .rename(aq.names(["city", "month", 'base', 'current']))
+      .objects()
+  </script>
+  <script id="218" type="application/vnd.observable.javascript">
+    data_transform = data.map(d => ({...d, 
+                                     YEAR: d.REP_PERIOD.getUTCFullYear(), 
+                                     MONTH: d.REP_PERIOD.getMonth() }))
+
+  </script>
+  <script id="725" type="application/vnd.observable.javascript">
+    //plotLabel = (data, anchor) => 
+    plotLabel = (data, dy) => 
+      Plot.text(data, {
+        x: "key",
+        y: "accu",
+        dy: dy,    
+        //frameAnchor: anchor,
+        fontWeight: "bold",
+        text: d => d3.format(",d")(d.value)
+      })
+  </script>
+  <script id="731" type="application/vnd.observable.javascript">
+    fmt = n => d3.format(",d")(n)
+  </script>
+  <script id="531" type="application/vnd.observable.javascript">
+    indicators = [
+      {name: "Revenues", indicator: "income"},
+      {name: "Core revenues (without transfers)", indicator: "income_core"},
+      {name: "Current surplus", indicator: "curr_surplus"}
+    ]
+  </script>
+  <script id="66" type="application/vnd.observable.javascript">
+    cities = Array.from(new Set(data.map(d => d.CITY)))
+  </script>
+  <script id="2521" type="application/vnd.observable.javascript">
+    transferShare = {
+
+      let data_share = data
+        .map(d => ({...d, 
+                      share: d.income_transfers / d.income,
+                      YEAR: d.REP_PERIOD.getUTCFullYear(), 
+                      MONTH: d.REP_PERIOD.getMonth() }))
+
+      return aq.from(data_share)
+        .params({selectYear: selectYear, baseYear: baseYear})
+        .groupby("CITY", "YEAR")
+        .filter(d => d.MONTH == op.max(d.MONTH))
+        .filter(d => d.YEAR == selectYear || d.YEAR == baseYear)
+        .select("CITY", "YEAR", "share")
+        .groupby("CITY")
+        .pivot("YEAR", "share")
+        .objects()
+    }
+
+
+
+  </script>
+  <script id="2408" type="application/vnd.observable.javascript">
+    data = {
+      // Helper function to get the primary group code from ancestors 
+      const aggData = (tab) => {
+        return aq.from(tab)
+          .filter(d => d.FUND_TYP == "T") 
+          .groupby("CITY", "REP_PERIOD")
+          .derive({value: d => d.FAKT_AMT / 1000000})
+      };
+
+      let inc_agg = aggData(inc)
+        .rollup({income: op.sum("value")})
+
+      let inc_curr_agg = aggData(curr_inc)
+        .rollup({income_curr: op.sum("value")})
+
+
+      let inc_core_agg = aggData(core_inc)
+        .rollup({income_core: op.sum("value")})
+
+      let inc_transfer_agg = aggData(transfer_inc)
+        .rollup({income_transfers: op.sum("value")})
+
+      let exp_agg = aggData(exp_e)
+        .rollup({expense: op.sum("value")})
+
+      let exp_curr_agg = aggData(curr_exp)
+        .rollup({expense_curr: op.sum("value")})
+
+      return inc_agg
+        .join_left(inc_curr_agg)
+        .join_left(inc_core_agg)
+        .join_left(inc_transfer_agg)
+        .join_left(exp_agg)
+        .join_left(exp_curr_agg)
+        .derive({curr_surplus: d => d.income_curr - d.expense_curr})
+        .orderby("CITY", "REP_PERIOD")
+        .objects()
+
+    }
+  </script>
+  <script id="2161" type="text/markdown">
+    ### Aggregate data for icicle and waterfall charts
+  </script>
+  <script id="1637" type="application/vnd.observable.javascript">
+    inc_trtab = get_treetab(inc, inck_table, "COD_INCO")
+  </script>
+  <script id="1312" type="application/vnd.observable.javascript">
+    exp_e_trtab = get_treetab(exp_e, kek_table, "COD_CONS_EK")
+  </script>
+  <script id="1049" type="application/vnd.observable.javascript">
+    exp_f_trtab = get_treetab(exp_f, kfk_table, "COD_CONS_MB_FK", true)
+  </script>
+  <script id="2324" type="application/vnd.observable.javascript">
+    function get_treetab(data, c_table, codeString, adjust = false) {
+       let data_select = data
+          .filter(d => d.FUND_TYP == "T") 
+          .filter(d => d.CITY == selectCity)
+          .map(d => ({...d, 
+                      value: d.FAKT_AMT / 1000000 / (adjust ? 2 : 1), // correcting the mistake of expense doubling in the program expense file
+                      code: d[codeString],
+                      YEAR: d.REP_PERIOD.getUTCFullYear(), 
+                      MONTH: d.REP_PERIOD.getMonth() }))
+          .filter(d => d.YEAR == selectYear)
+
+
+      let data_transform = aq.from(data_select)
+          .params({month_max: month_max})
+          .filter(d => d.MONTH == month_max)
+          .select("code", "value")
+          .groupby("code")
+          .rollup({value: op.sum("value")})
+          .orderby("code")
+
+      return aq.from(c_table)
+        .join_left(data_transform, "code")
+        .objects()
+
+    }
+  </script>
+  <script id="2772" type="application/vnd.observable.javascript">
+    curr_exp_wfd = waterfall_diff(curr_exp, kek_table, "COD_CONS_EK", {code: 2000, name: "Total"})
+  </script>
+  <script id="2750" type="application/vnd.observable.javascript">
+    curr_inc_wfd = waterfall_diff(curr_inc, inck_table, "COD_INCO", {code: 0, name: "Total"})
+  </script>
+  <script id="2388" type="application/vnd.observable.javascript">
+    inc_wfd =  waterfall_diff(inc, inck_table, "COD_INCO", selectInc)
+  </script>
+  <script id="2382" type="application/vnd.observable.javascript">
+    exp_f_wfd = waterfall_diff(exp_f, kfk_table, "COD_CONS_MB_FK", selectExpFunc, true)
+  </script>
+  <script id="2372" type="application/vnd.observable.javascript">
+    exp_e_wfd = waterfall_diff(exp_e, kek_table, "COD_CONS_EK", selectExpEcon)
+  </script>
+  <script id="3334" type="application/vnd.observable.javascript">
+    new_curr_surplus_wfd = waterfall_diff(curr_surplus, new_combi_table, "COD", {code: 0, name: "Current surplus"})
+  </script>
+  <script id="2815" type="application/vnd.observable.javascript">
+    curr_surplus_wfd = waterfall_diff(curr_surplus, combi_table, "COD", {code: 0, name: "Current surplus"})
+  </script>
+  <script id="3305" type="application/vnd.observable.javascript">
+    new_curr_surplus_wf = waterfall(curr_surplus, new_combi_table, "COD", {code: 0, name: "Income"})
+  </script>
+  <script id="3065" type="application/vnd.observable.javascript">
+    curr_surplus_wf = waterfall(curr_surplus, combi_table, "COD", {code: 0, name: "Current surplus"})
+  </script>
+  <script id="1615" type="application/vnd.observable.javascript">
+    // Transform data into format for waterfall chart
+
+    function waterfall_diff(data, c_table, codeString, selectCat, adjust = false) {
+      // Convert table with codes into a tree
+      let c_tree = d3.stratify()
+        .id((d) => d.code)
+        .parentId((d) => d.parentCode)
+        (c_table);
+
+      // Extract nodes with primary codes 
+      let c_leaves = c_tree.descendants().find(d => d.id == selectCat.code).copy().descendants();
+
+      // Helper function to get the primary group code from ancestors 
+      const getGroupCode = (node) => {
+        const ancestor = node.ancestors().find(d => d.depth === 1);
+        return ancestor ? ancestor.data.code : null;
+      };
+
+      // construct a mapping of primary codes to their group codes
+      let codeMap = c_leaves.map(d => ({
+        code: d.data.code, 
+        groupCode: getGroupCode(d)
+        // check if relevant node has an ancestor in the first level of aggregation
+    }))
+
+      // Filter and transform the `data` array
+      let data_select = data
+        .filter(d => d.FUND_TYP == "T") 
+        .filter(d => d.CITY == selectCity)
+        .map(d => ({...d, 
+                    code: d[codeString],
+                    YEAR: d.REP_PERIOD ? new Date(d.REP_PERIOD).getUTCFullYear() : null,
+                    MONTH:d.REP_PERIOD ? new Date(d.REP_PERIOD).getUTCMonth() : null,
+                   }))
+        .filter(d => codeMap.map(D => D.code).includes(d.code))
+
+      // Transform and aggregate data using Arquero
+      let data_agg = aq.from(data_select)  
+       .params({ selectYear: selectYear, baseYear: baseYear, selectCity: selectCity, month_max: month_max, adjust: adjust})
+       .join_left(aq.from(codeMap), "code")  
+      .derive({
+        code: d => d.groupCode,  // code aggregation
+        value: d => d.FAKT_AMT / 1000000 / (adjust ? 2 : 1)  // correcting the mistake of expense doubling in the program expense file
+          })
+      .select("CITY", "YEAR", "MONTH", "code", "value")
+      .filter(d => d.YEAR == selectYear || d.YEAR == baseYear)
+      .groupby("code", "YEAR", "CITY")
+      .filter(d => d.MONTH == month_max)
+      .rollup({value: op.sum("value")})
+      .orderby("code")
+      .join_left(aq.from(c_table), "code")
+
+      // Calculate the sum by column for each year
+      let sumByCol = data_agg
+        .groupby("YEAR")
+        .rollup({Total: op.sum("value")})
+        .derive({Total_lag: op.lag("Total")})
+
+      // Process the final array with labeled keys and accumulated values
+      let arr = data_agg
+      .groupby("code")
+      .derive(({value_diff: d => d.value - op.lag(d.value)}))
+      .groupby("YEAR")
+      .pivot("name", "value_diff", {sort: false})
+      .join_left(sumByCol, "YEAR")
+      .filter(d => d.YEAR == selectYear)
+      .relocate("Total_lag", {before: 1})
+      .fold([aq.not("YEAR")])
+      .derive({nextKey: d => op.lead(d.key),
+                 accu: aq.rolling(d => op.sum(d.value))})
+      .derive({accu: d => d.key == "Total" ? d.value : d.accu,
+                 prior: d => d.key == "Total" ? 0 : op.lag(d.accu) ?? 0,})
+      .objects()
+      .map(d => ({...d,
+                  key: d.key === "Total" ? 
+                  `${selectCat.name} \n${month_max + 1}m ${selectYear}` : 
+                      d.key === "Total_lag" ?
+                      `${selectCat.name} \n${month_max + 1}m ${baseYear}` :
+                      d.key
+                  }))   // change labels to include relevant period
+
+      return arr
+    }
+  </script>
+  <script id="3063" type="application/vnd.observable.javascript">
+    // Transform data into format for waterfall chart
+
+    function waterfall(data, c_table, codeString, selectCat, adjust = false) {
+      // Convert table with codes into a tree
+      let c_tree = d3.stratify()
+        .id((d) => d.code)
+        .parentId((d) => d.parentCode)
+        (c_table);
+
+      // Extract nodes with primary codes 
+      let c_leaves = c_tree.descendants().find(d => d.id == selectCat.code).copy().descendants();
+
+      // Helper function to get the primary group code from ancestors 
+      const getGroupCode = (node) => {
+        const ancestor = node.ancestors().find(d => d.depth === 1);
+        return ancestor ? ancestor.data.code : null;
+      };
+
+      // construct a mapping of primary codes to their group codes
+      let codeMap = c_leaves.map(d => ({
+        code: d.data.code, 
+        groupCode: getGroupCode(d)
+        // check if relevant node has an ancestor in the first level of aggregation
+    }))
+
+      // Filter and transform the `data` array
+      let data_select = data
+        .filter(d => d.FUND_TYP == "T") 
+        .filter(d => d.CITY == selectCity)
+        .map(d => ({...d, 
+                    code: d[codeString],
+                    YEAR: d.REP_PERIOD ? new Date(d.REP_PERIOD).getUTCFullYear() : null,
+                    MONTH:d.REP_PERIOD ? new Date(d.REP_PERIOD).getUTCMonth() : null,
+                   }))
+        .filter(d => codeMap.map(D => D.code).includes(d.code))
+
+      // Transform and aggregate data using Arquero
+      let data_agg = aq.from(data_select)  
+       .params({ selectYear: selectYear, selectCity: selectCity, month_max: month_max, adjust: adjust})
+       .join_left(aq.from(codeMap), "code")  
+      .derive({
+        code: d => d.groupCode,  // code aggregation
+        value: d => d.FAKT_AMT / 1000000 / (adjust ? 2 : 1)  // correcting the mistake of expense doubling in the program expense file
+          })
+      .select("CITY", "YEAR", "MONTH", "code", "value")
+      .filter(d => d.YEAR == selectYear)
+      .groupby("code", "YEAR", "CITY")
+      .filter(d => d.MONTH == month_max)
+      .rollup({value: op.sum("value")})
+      .orderby("code")
+      .join_left(aq.from(c_table), "code")
+
+      // Calculate the sum by column for each year
+      let sumByCol = data_agg
+        .groupby("YEAR")
+        .rollup({Total: op.sum("value")})
+
+      // Process the final array with labeled keys and accumulated values
+      let arr = data_agg
+      .groupby("code")
+      .groupby("YEAR")
+      .pivot("name", "value", {sort: false})
+      .join_left(sumByCol, "YEAR")
+      .fold([aq.not("YEAR")])
+      .derive({nextKey: d => op.lead(d.key),
+                 accu: aq.rolling(d => op.sum(d.value))})
+      .derive({accu: d => d.key == "Total" ? d.value : d.accu,
+                 prior: d => d.key == "Total" ? 0 : op.lag(d.accu) ?? 0,})
+      .objects()
+      .map(d => ({...d,
+                  key: d.key === "Total" ? 
+                  `${selectCat.name} \n${month_max + 1}m ${selectYear}` : 
+                  d.key
+                  }))   // change labels to include relevant period
+
+      return arr
+    }
+  </script>
+  <script id="1588" type="application/vnd.observable.javascript">
+    month_max = {
+      const months = inc
+          .filter(d => d.REP_PERIOD.getUTCFullYear() == selectYear)
+          .map(d => d.REP_PERIOD.getUTCMonth())
+
+       return Math.max(...months)
+    }
+  </script>
+  <script id="3004" type="text/markdown">
+    ### Data transforms for Current Surplus
+  </script>
+  <script id="2719" type="application/vnd.observable.javascript">
+    function get_codes(c_table, base_codes) {
+      let tree = d3.stratify()
+        .id((d) => d.code)
+        .parentId((d) => d.parentCode)
+        (c_table);
+
+      let tree_codes = [];  
+      for (let code of base_codes) {
+        let arr = tree.descendants().find(d => d.id == code).copy().descendants().map(d => d.data.code)
+
+        tree_codes = tree_codes.concat(arr)
+      }
+      return tree_codes
+    }
+  </script>
+  <script id="2755" type="application/vnd.observable.javascript">
+    curr_inc = {
+      // get all codes descendant from 
+      let inc_cap_codes = get_codes(inck_table, selectCapitalIncomeCat.map(d => d.code));
+
+      return inc.filter(d => !inc_cap_codes.includes(d.COD_INCO))
+
+    }
+  </script>
+  <script id="2888" type="application/vnd.observable.javascript">
+    core_inc = {
+      let base_codes = [10000000, 20000000, 50000000];
+
+      let inc_core_codes = get_codes(inck_table, base_codes);
+
+      return curr_inc.filter(d => inc_core_codes.includes(d.COD_INCO))
+
+    }
+  </script>
+  <script id="2905" type="application/vnd.observable.javascript">
+    transfer_inc = {
+      let base_codes = [40000000];
+
+      let inc_trans_codes = get_codes(inck_table, base_codes);
+
+      return curr_inc.filter(d => inc_trans_codes.includes(d.COD_INCO))
+
+    }
+  </script>
+  <script id="2761" type="application/vnd.observable.javascript">
+    curr_exp = {
+      let exp_cap_codes = get_codes(kek_table, selectCapitalExpenseCat.map(d => d.code));
+
+      return exp_e.filter(d => !exp_cap_codes.includes(d.COD_CONS_EK))
+
+    }
+  </script>
+  <script id="2817" type="application/vnd.observable.javascript">
+    curr_surplus = [
+      ...curr_inc.map(d => ({...d, COD: d.COD_INCO, FAKT_AMT: +d.FAKT_AMT})),
+      ...curr_exp.map(d => ({...d, COD: d.COD_CONS_EK, FAKT_AMT: -d.FAKT_AMT})),
+    ]
+  </script>
+  <script id="2067" type="text/markdown">
+    #### Data files
+
+  </script>
+  <script id="1608" type="application/vnd.observable.javascript">
+    inc = d3.csv('https://raw.githubusercontent.com/atsokol/openbudget-data-update/main/data/incomes.csv', d3.autoType)
+  </script>
+  <script id="3357" type="module" pinned="">
+
+  </script>
+  <script id="2124" type="application/vnd.observable.javascript">
+    exp_f = d3.csv('https://raw.githubusercontent.com/atsokol/openbudget-data-update/main/data/expenses_functional.csv', d3.autoType)
+  </script>
+  <script id="1302" type="application/vnd.observable.javascript">
+    exp_e = d3.csv('https://raw.githubusercontent.com/atsokol/openbudget-data-update/main/data/expenses.csv', d3.autoType)
+  </script>
+  <script id="2062" type="text/markdown">
+    #### Budget classificators
+  </script>
+  <script id="2790" type="application/vnd.observable.javascript">
+    combi_table = [
+        {code: 0, parentCode: null, name: "Current surplus", level: 0},
+        ...inck_table.slice(1, inck_table.length),
+        ...kek_table.slice(1, kek_table.length)
+                    .filter(d => d.code != 2000)  
+                    .map(d => ({...d, parentCode: d.parentCode == 2000 ? 0 : d.parentCode})) 
+    ]
+
+
+  </script>
+  <script id="1604" type="application/vnd.observable.javascript">
+    inck_table = [
+      {code: 0, parentCode: null, name: "Загальні доходи", level: 0},
+      ...inck
+            .filter(d => d.endDate == null) // current categorisation
+            .map(d => ({code: +d.code, parentCode: +d.parentCode ?? 0, name: d.name, level: d.level}))
+            .sort((a,b) => a.code - b.code)
+      ]
+  </script>
+  <script id="1601" type="application/vnd.observable.javascript">
+    inck = FileAttachment("INC.json").json()
+  </script>
+  <script id="1359" type="application/vnd.observable.javascript">
+    kek_table = [
+      {code: 0, parentCode: null, name: "Загальні видатки", level: 0},
+      ...kek
+            .filter(d => d.endDate == null) // current categorisation
+            .map(d => ({code: +d.code, parentCode: +d.parentCode ?? 0, name: d.name, level: d.level}))
+            .sort((a,b) => a.code - b.code)
+      ]
+  </script>
+  <script id="1353" type="application/vnd.observable.javascript">
+    kek = FileAttachment("KEK.json").json()
+  </script>
+  <script id="1142" type="application/vnd.observable.javascript">
+    kfk_table = [
+      {code: 0, parentCode: null, name: "Загальні видатки", level: 0},
+      ...kfk
+            .filter(d => d.endDate == null) // current categorisation
+            .map(d => ({code: +d.code, parentCode: +d.parentCode ?? 0, name: d.name, level: d.level}))
+            .sort((a,b) => a.code - b.code)
+      ]
+  </script>
+  <script id="1140" type="application/vnd.observable.javascript">
+    kfk = FileAttachment("KFK").json()
+  </script>
+  <script id="3209" type="text/markdown">
+    #### Download files
+  </script>
+  <script id="3285" type="application/vnd.observable.javascript" pinned="">
+    new_combi_table = hierarchyToTable(new_combi_tree)
+  </script>
+  <script id="3239" type="application/vnd.observable.javascript">
+    new_combi_tree = d3.hierarchy(
+     {
+      name: "root", code: 0,
+      children: [
+        {
+          name: "Tax revenues", code: 100000000,
+          children: [
+            {
+              name: "Personal income tax", code:  110100000,
+              children: get_codes_ex(inck_table, [11010000])
+            },
+            {
+              name: "Unified income tax", code:   180500000,
+              children: get_codes_ex(inck_table, [18050000])
+            },
+            {
+              name: "Other tax revenues", code: 100000001,
+              children: get_codes_ex(inck_table, [10000000], [11010000, 18050000])
+            }
+         ]
+        },
+        {
+          name: "Non-tax revenues", code: 200000000,
+          children: get_codes_ex(inck_table, [20000000, 50000000], [21010500, 21010700, 21050000, 24110000]) 
+        },
+        {
+          name: "Capital revenues", code: 300000000,
+          children: get_codes_ex(inck_table, [30000000, 42000000, 21010500, 21010700, 21050000, 24110000])
+        },
+        {
+          name: "Incoming Transfers", code: 400000000,
+          children: get_codes_ex(inck_table, [40000000], [42000000])
+        },
+        {
+          name: "Staff costs", code: 21000,
+          children: get_codes_ex(kek_table, [2100])
+        },
+        {
+          name: "Purchase of materials", code: 22000,
+          children: get_codes_ex(kek_table, [2210, 2220,2230,2240])
+        },
+        {
+          name: "Discretionary expenditures", code: 22500,
+          children: get_codes_ex(kek_table, [2250, 2260, 2282, 2800, 9000])
+        },
+        {
+          name: "Utility payments", code: 22700,
+          children: get_codes_ex(kek_table, [2270])
+        },
+        {
+          name: "Capital expenditures", code: 30000,
+          children: get_codes_ex(kek_table, [3100, 2281])
+        },
+        {
+          name: "Capital transfers", code: 32000,
+          children: get_codes_ex(kek_table, [3200])
+        },
+        {
+          name: "Outgoing transfers", code: 26000,
+          children: get_codes_ex(kek_table, [2600, 2700])
+        },
+           {
+          name: "Interest paid", code: 24000,
+          children: get_codes_ex(kek_table, [2400])
+        }
+      ]
+     }
+    )
+  </script>
+  <script id="3251" type="application/vnd.observable.javascript">
+    // Convert d3.hierarchy to a flat table format
+    function hierarchyToTable(root) {
+      // Initialize an empty array to hold the table data
+      let table = [];
+
+      // Use recursion or iteration to traverse the hierarchy
+      root.each((node) => {
+        // For each node, add an object to the table with the relevant properties
+        table.push({
+          code: node.data.code,               // Unique ID of the node
+          name: node.data.name,            // Name or label of the node
+          parentCode: node.parent ? node.parent.data.code : null, // ID of the parent node, or null if root
+          // Add any other properties you need from node.data
+        });
+      });
+
+      return table;
+    }
+
+  </script>
+  <script id="3243" type="application/vnd.observable.javascript">
+    function get_codes_ex(c_table, base_codes, exclude_codes = []) {
+      let tree = d3.stratify()
+        .id((d) => d.code)
+        .parentId((d) => d.parentCode)
+        (c_table);
+
+      let tree_codes = [];  
+      for (let code of base_codes) {
+        let arr = tree.descendants().find(d => d.id == code).copy().descendants().map(d => ({code: d.data.code, name: d.data.name}))
+
+        tree_codes = tree_codes.concat(arr)
+      }
+
+      let ex_codes = [];
+      for (let code of exclude_codes) {
+          let arr = tree.descendants().find(d => d.id == code).copy().descendants().map(d => d.data.code)
+          ex_codes = ex_codes.concat(arr)
+        }
+
+      return tree_codes.filter(d => !ex_codes.includes(d.code))
+    }
+  </script>
+  <script id="3186" type="application/vnd.observable.javascript">
+    tab = xlsx.utils.json_to_sheet(data_yoy)
+  </script>
+  <script id="3189" type="application/vnd.observable.javascript">
+    write_sheet = out_sheet => {
+      const wb = xlsx.utils.book_new()
+      xlsx.utils.book_append_sheet(wb, out_sheet, 'output')
+      xlsx.writeFile(wb, 'out.xlsx')
+    }
+  </script>
+  <script id="3197" type="text/html">
+    <button onclick=${() => write_sheet(tab)}>Download file</button>
+  </script>
+  <script id="2074" type="text/markdown">
+    #### Import libraries
+  </script>
+  <script id="1178" type="application/vnd.observable.javascript">
+    import {Icicle} from "@d3/icicle-component"
+  </script>
+  <script id="139" type="application/vnd.observable.javascript">
+    import { aq, op } from '@uwdata/arquero';
+  </script>
+  <script id="3181" type="application/vnd.observable.javascript">
+    xlsx = require('https://bundle.run/xlsx@0.14.1')
+  </script>
+</notebook>
