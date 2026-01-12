@@ -21,13 +21,48 @@ import {TrendsChart} from "./components/trends-chart.js";
 import {YoYComparisonChart} from "./components/yoy-comparison-chart.js";
 import {WaterfallChart, WaterfallComparisonChart} from "./components/waterfall.js";
 import {prepareWaterfallData, prepareWaterfallComparisonData, get_codes} from "./components/waterfall-data.js";
+import {query} from "./components/duckdb.js";
 
-// Load data from DuckDB via data loaders
+// Load data from DuckDB via WASM
 const budgetData = await FileAttachment("data/budget-summary.json").json();
 const config = await FileAttachment("data/config.json").json();
-const inc = await FileAttachment("data/incomes.json").json();
-const exp_e = await FileAttachment("data/expenses.json").json();
-const exp_f = await FileAttachment("data/expenses-functional.json").json();
+
+// Query data directly from DuckDB in the browser
+const inc = await query(`
+  SELECT 
+    CITY,
+    REP_PERIOD,
+    FUND_TYP,
+    CAST(COD_INCO AS BIGINT) as COD_INCO,
+    NAME_INC,
+    FAKT_AMT
+  FROM 'budget.duckdb'.incomes
+  ORDER BY CITY, REP_PERIOD, COD_INCO
+`);
+
+const exp_e = await query(`
+  SELECT 
+    CITY,
+    REP_PERIOD,
+    FUND_TYP,
+    CAST(COD_CONS_EK AS BIGINT) as COD_CONS_EK,
+    COD_CONS_EK_NAME,
+    FAKT_AMT
+  FROM 'budget.duckdb'.expenses
+  ORDER BY CITY, REP_PERIOD, COD_CONS_EK
+`);
+
+const exp_f = await query(`
+  SELECT 
+    CITY,
+    REP_PERIOD,
+    FUND_TYP,
+    CAST(COD_CONS_MB_FK AS BIGINT) as COD_CONS_MB_FK,
+    COD_CONS_MB_FK_NAME,
+    FAKT_AMT
+  FROM 'budget.duckdb'.expenses_functional
+  ORDER BY CITY, REP_PERIOD, COD_CONS_MB_FK
+`);
 
 // Load classificators
 const inck_table = await FileAttachment("data/classificators/KDB.json").json();

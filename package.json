@@ -12,6 +12,7 @@
     "setup": "npm install && bash init-db.sh"
   },
   "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.33.1-dev18.0",
     "@observablehq/framework": "^1.13.3",
     "arquero": "^8.0.3",
     "d3-dsv": "^3.0.1",

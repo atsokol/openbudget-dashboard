@@ -18,6 +18,13 @@ setwd(script_dir)
 
 cat("Initializing database from CSV files...\n")
 
+# Check if incomes.csv exists (it's too large to commit to git)
+if (!file.exists("csvs/incomes.csv")) {
+  cat("Warning: csvs/incomes.csv not found (not committed due to size)\n")
+  cat("Database will be created without incomes data.\n")
+  cat("Run update-db.R after initialization to fetch incomes from API.\n")
+}
+
 # Connect to DuckDB (will create if doesn't exist)
 con <- dbConnect(duckdb::duckdb(), "budget.duckdb")
 
@@ -44,7 +51,10 @@ for (stmt in statements) {
     tryCatch({
       dbExecute(con, stmt)
     }, error = function(e) {
-      cat("Warning:", conditionMessage(e), "\n")
+      # Skip errors for incomes table if CSV doesn't exist
+      if (!grepl("incomes", stmt, ignore.case = TRUE)) {
+        cat("Warning:", conditionMessage(e), "\n")
+      }
     })
   }
 }
@@ -57,9 +67,11 @@ cat("\nCreated tables:", paste(tables, collapse = ", "), "\n")
 for (table in tables) {
   if (!grepl("^sqlite_", table) && table != "budget_summary") {
     count <- dbGetQuery(con, sprintf("SELECT COUNT(*) as n FROM %s", table))$n
-    size_mb <- dbGetQuery(con, sprintf("SELECT pg_size_pretty(pg_total_relation_size('%s'))", table))
     cat(sprintf("  %s: %s rows\n", table, format(count, big.mark = ",")))
   }
 }
 
 cat("\n✓ Database initialized successfully from CSV files\n")
+if (!file.exists("csvs/incomes.csv")) {
+  cat("⚠ Note: Incomes table is empty. Run update-db.R to populate from API.\n")
+}
